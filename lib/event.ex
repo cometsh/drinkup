@@ -1,13 +1,14 @@
 defmodule Drinkup.Event do
   alias Drinkup.Event
 
-  @spec from(String.t(), map()) ::
+  @type t() ::
           Event.Commit.t()
           | Event.Sync.t()
           | Event.Identity.t()
           | Event.Account.t()
           | Event.Info.t()
-          | nil
+
+  @spec from(String.t(), map()) :: t() | nil
   def from("#commit", payload), do: Event.Commit.from(payload)
   def from("#sync", payload), do: Event.Sync.from(payload)
   def from("#identity", payload), do: Event.Identity.from(payload)
@@ -17,6 +18,7 @@ defmodule Drinkup.Event do
 
   @spec valid_seq?(integer() | nil, any()) :: boolean()
   def valid_seq?(nil, seq) when is_integer(seq), do: true
+  def valid_seq?(last_seq, nil) when is_integer(last_seq), do: true
   def valid_seq?(last_seq, seq) when is_integer(last_seq) and is_integer(seq), do: seq > last_seq
   def valid_seq?(_last_seq, _seq), do: false
 end

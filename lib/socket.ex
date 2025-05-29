@@ -4,7 +4,7 @@ defmodule Drinkup.Socket do
   """
 
   require Logger
-  alias Drinkup.Event
+  alias Drinkup.{ConsumerGroup, Event}
 
   @behaviour :gen_statem
   @default_host "https://bsky.network"
@@ -20,12 +20,22 @@ defmodule Drinkup.Socket do
   @impl true
   def callback_mode, do: [:state_functions, :state_enter]
 
-  def start_link(opts \\ []) do
+  def child_spec(opts) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, [opts, []]},
+      type: :worker,
+      restart: :permanent,
+      shutdown: 500
+    }
+  end
+
+  def start_link(opts \\ [], statem_opts) do
     opts = Keyword.validate!(opts, host: @default_host)
     host = Keyword.get(opts, :host)
     cursor = Keyword.get(opts, :cursor)
 
-    :gen_statem.start_link(__MODULE__, {host, cursor}, [])
+    :gen_statem.start_link(__MODULE__, {host, cursor}, statem_opts)
   end
 
   @impl true
@@ -103,18 +113,17 @@ defmodule Drinkup.Socket do
     with {:ok, header, next} <- CAR.DagCbor.decode(frame),
          {:ok, payload, _} <- CAR.DagCbor.decode(next),
          {%{"op" => @op_regular, "t" => type}, _} <- {header, payload},
-         true <- type == "#info" || Event.valid_seq?(data.seq, payload["seq"]),
-         data <- %{data | seq: payload["seq"] || data.seq},
-         message <-
-           Event.from(type, payload) do
+         true <- Event.valid_seq?(data.seq, payload["seq"]) do
+      data = %{data | seq: payload["seq"] || data.seq}
+      message = Event.from(type, payload)
       :ok = :gun.update_flow(conn, stream, @flow)
 
       case message do
-        %Event.Commit{} = commit ->
-          IO.inspect(commit.ops, label: commit.repo)
+        nil ->
+          Logger.warning("Received unrecognised event from firehose: #{inspect({type, payload})}")
 
-        msg ->
-          IO.inspect(msg)
+        message ->
+          ConsumerGroup.dispatch(message)
       end
 
       {:keep_state, data}
