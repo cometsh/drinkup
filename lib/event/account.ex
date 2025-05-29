@@ -1,4 +1,4 @@
-defmodule Drinkup.Firehose.Account do
+defmodule Drinkup.Event.Account do
   @moduledoc """
   Struct for account events from the ATProto Firehose.
   """

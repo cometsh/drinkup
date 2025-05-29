@@ -21,11 +21,12 @@ defmodule Drinkup.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:cbor, "~> 1.0.0"},
       {:car, "~> 0.1.0"},
+      {:cbor, "~> 1.0.0"},
+      {:certifi, "~> 2.15"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:typedstruct, "~> 0.5"},
-      {:websockex, "~> 0.5.0", hex: :websockex_wt}
+      {:gun, "~> 2.2"},
+      {:typedstruct, "~> 0.5"}
     ]
   end
 end
