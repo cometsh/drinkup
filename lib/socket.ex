@@ -4,7 +4,7 @@ defmodule Drinkup.Socket do
   """
 
   require Logger
-  alias Drinkup.{ConsumerGroup, Event}
+  alias Drinkup.Event
 
   @behaviour :gen_statem
   @default_host "https://bsky.network"
@@ -15,7 +15,7 @@ defmodule Drinkup.Socket do
   @op_regular 1
   @op_error -1
 
-  defstruct [:host, :seq, :conn, :stream]
+  defstruct [:options, :seq, :conn, :stream]
 
   @impl true
   def callback_mode, do: [:state_functions, :state_enter]
@@ -30,17 +30,15 @@ defmodule Drinkup.Socket do
     }
   end
 
-  def start_link(opts \\ [], statem_opts) do
-    opts = Keyword.validate!(opts, host: @default_host)
-    host = Keyword.get(opts, :host)
-    cursor = Keyword.get(opts, :cursor)
+  def start_link(%{consumer: _} = options, statem_opts) do
+    options = Map.merge(%{host: @default_host, cursor: nil}, options)
 
-    :gen_statem.start_link(__MODULE__, {host, cursor}, statem_opts)
+    :gen_statem.start_link(__MODULE__, options, statem_opts)
   end
 
   @impl true
-  def init({host, cursor}) do
-    data = %__MODULE__{host: host, seq: cursor}
+  def init(%{cursor: seq} = options) do
+    data = %__MODULE__{seq: seq, options: options}
     {:ok, :disconnected, data, [{:next_event, :internal, :connect}]}
   end
 
@@ -54,10 +52,10 @@ defmodule Drinkup.Socket do
     {:next_state, :connecting_http, data}
   end
 
-  def connecting_http(:enter, _from, data) do
+  def connecting_http(:enter, _from, %{options: options} = data) do
     Logger.debug("Connecting to http")
 
-    %{host: host, port: port} = URI.new!(data.host)
+    %{host: host, port: port} = URI.new!(options.host)
 
     {:ok, conn} =
       :gun.open(:binary.bin_to_list(host), port, %{
@@ -107,7 +105,7 @@ defmodule Drinkup.Socket do
     :keep_state_and_data
   end
 
-  def connected(:info, {:gun_ws, conn, stream, {:binary, frame}}, data) do
+  def connected(:info, {:gun_ws, conn, stream, {:binary, frame}}, %{options: options} = data) do
     # TODO: let clients specify a handler for raw* (*decoded) packets to support any atproto subscription
     # Will also need support for JSON frames
     with {:ok, header, next} <- CAR.DagCbor.decode(frame),
@@ -123,7 +121,7 @@ defmodule Drinkup.Socket do
           Logger.warning("Received unrecognised event from firehose: #{inspect({type, payload})}")
 
         message ->
-          ConsumerGroup.dispatch(message)
+          Event.dispatch(options.consumer, message)
       end
 
       {:keep_state, data}

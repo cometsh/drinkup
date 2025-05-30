@@ -1,4 +1,5 @@
 defmodule Drinkup.Event do
+  require Logger
   alias Drinkup.Event
 
   @type t() ::
@@ -21,4 +22,19 @@ defmodule Drinkup.Event do
   def valid_seq?(last_seq, nil) when is_integer(last_seq), do: true
   def valid_seq?(last_seq, seq) when is_integer(last_seq) and is_integer(seq), do: seq > last_seq
   def valid_seq?(_last_seq, _seq), do: false
+
+  @spec dispatch(module(), t()) :: :ok
+  def dispatch(consumer, message) do
+    {:ok, _pid} =
+      Task.Supervisor.start_child(Drinkup.TaskSupervisor, fn ->
+        try do
+          consumer.handle_event(message)
+        rescue
+          e ->
+            Logger.error("Error in event handler: #{Exception.format(:error, e, __STACKTRACE__)}")
+        end
+      end)
+
+    :ok
+  end
 end

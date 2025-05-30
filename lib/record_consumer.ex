@@ -11,7 +11,7 @@ defmodule Drinkup.RecordConsumer do
     {collections, _opts} = Keyword.pop(opts, :collections, [])
 
     quote location: :keep do
-      use Drinkup.Consumer
+      @behaviour Drinkup.Consumer
       @behaviour Drinkup.RecordConsumer
 
       def handle_event(%Drinkup.Event.Commit{} = event) do
