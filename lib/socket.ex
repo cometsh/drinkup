@@ -4,10 +4,9 @@ defmodule Drinkup.Socket do
   """
 
   require Logger
-  alias Drinkup.Event
+  alias Drinkup.{Event, Options}
 
   @behaviour :gen_statem
-  @default_host "https://bsky.network"
   @timeout :timer.seconds(5)
   # TODO: `flow` determines messages in buffer. Determine ideal value?
   @flow 10
@@ -30,9 +29,7 @@ defmodule Drinkup.Socket do
     }
   end
 
-  def start_link(%{consumer: _} = options, statem_opts) do
-    options = Map.merge(%{host: @default_host, cursor: nil}, options)
-
+  def start_link(%Options{} = options, statem_opts) do
     :gen_statem.start_link(__MODULE__, options, statem_opts)
   end
 
@@ -121,7 +118,7 @@ defmodule Drinkup.Socket do
           Logger.warning("Received unrecognised event from firehose: #{inspect({type, payload})}")
 
         message ->
-          Event.dispatch(options.consumer, message)
+          Event.dispatch(message, options)
       end
 
       {:keep_state, data}

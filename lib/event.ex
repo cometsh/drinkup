@@ -1,6 +1,6 @@
 defmodule Drinkup.Event do
   require Logger
-  alias Drinkup.Event
+  alias Drinkup.{Event, Options}
 
   @type t() ::
           Event.Commit.t()
@@ -23,10 +23,12 @@ defmodule Drinkup.Event do
   def valid_seq?(last_seq, seq) when is_integer(last_seq) and is_integer(seq), do: seq > last_seq
   def valid_seq?(_last_seq, _seq), do: false
 
-  @spec dispatch(module(), t()) :: :ok
-  def dispatch(consumer, message) do
+  @spec dispatch(t(), Options.t()) :: :ok
+  def dispatch(message, %Options{consumer: consumer, name: name}) do
+    supervisor_name = {:via, Registry, {Drinkup.Registry, {name, Tasks}}}
+
     {:ok, _pid} =
-      Task.Supervisor.start_child(Drinkup.TaskSupervisor, fn ->
+      Task.Supervisor.start_child(supervisor_name, fn ->
         try do
           consumer.handle_event(message)
         rescue

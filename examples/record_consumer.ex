@@ -17,14 +17,14 @@ end
 defmodule ExampleSupervisor do
   use Supervisor
 
-  def start_link(args \\ []) do
+  def start_link(arg \\ []) do
     Supervisor.start_link(__MODULE__, arg, name: __MODULE__)
   end
 
   @impl true
   def init(_) do
     children = [
-      {Drinkup, %{module: ExampleRecordConsumer}}
+      {Drinkup, %{consumer: ExampleRecordConsumer}}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

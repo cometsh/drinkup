@@ -7,6 +7,5 @@ firehose.
 
 - Support for different subscriptions other than
   `com.atproto.sync.subscribeRepo'
-- Support for multiple instances at once, each with unique consumers (for
-  listening to multiple subscriptions at once)
 - Tests
+- Documentation

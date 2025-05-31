@@ -1,23 +1,32 @@
 defmodule Drinkup do
   use Supervisor
+  alias Drinkup.Options
 
-  @type options() :: %{
-          required(:consumer) => module(),
-          optional(:host) => String.t(),
-          optional(:cursor) => pos_integer()
-        }
-
-  @spec start_link(options()) :: Supervisor.on_start()
-  def start_link(options) do
-    Supervisor.start_link(__MODULE__, options, name: __MODULE__)
-  end
-
-  def init(options) do
+  @dialyzer nowarn_function: {:init, 1}
+  @impl true
+  def init({%Options{name: name} = drinkup_options, supervisor_options}) do
     children = [
-      {Task.Supervisor, name: Drinkup.TaskSupervisor},
-      {Drinkup.Socket, options}
+      {Task.Supervisor, name: {:via, Registry, {Drinkup.Registry, {name, Tasks}}}},
+      {Drinkup.Socket, drinkup_options}
     ]
 
-    Supervisor.init(children, strategy: :one_for_one)
+    Supervisor.start_link(
+      children,
+      supervisor_options ++ [name: {:via, Registry, {Drinkup.Registry, {name, Supervisor}}}]
+    )
+  end
+
+  @spec child_spec(Options.options()) :: Supervisor.child_spec()
+  def child_spec(%{} = options), do: child_spec({options, [strategy: :one_for_one]})
+
+  @spec child_spec({Options.options(), Keyword.t()}) :: Supervisor.child_spec()
+  def child_spec({drinkup_options, supervisor_options}) do
+    %{
+      id: Map.get(drinkup_options, :name, __MODULE__),
+      start: {__MODULE__, :init, [{Options.from(drinkup_options), supervisor_options}]},
+      type: :supervisor,
+      restart: :permanent,
+      shutdown: 500
+    }
   end
 end
