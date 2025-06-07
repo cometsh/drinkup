@@ -10,5 +10,5 @@ and this project adheres to
 
 Initial release.
 
-[unreleased]: https://github.com/cometsh/elixir-car/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/cometsh/elixir-car/releases/tag/v0.1.0
+[unreleased]: https://github.com/cometsh/drinkup/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/cometsh/drinkup/releases/tag/v0.1.0
