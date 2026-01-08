@@ -8,10 +8,15 @@ and this project adheres to
 
 ## [Unreleased]
 
-### Breaking Change
+### Breaking Changes
 
 - Existing behaviour moved to `Drinkup.Firehose` namespace, to make way for
   alternate sync systems.
+
+### Changed
+
+- Refactor core connection logic for websockets into `Drinkup.Socket` to make it
+  easy to use across multiple different services.
 
 ## [0.1.0] - 2025-05-26
 
