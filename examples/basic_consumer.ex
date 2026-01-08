@@ -1,7 +1,7 @@
 defmodule BasicConsumer do
-  @behaviour Drinkup.Consumer
+  @behaviour Drinkup.Firehose.Consumer
 
-  def handle_event(%Drinkup.Event.Commit{} = event) do
+  def handle_event(%Drinkup.Firehose.Event.Commit{} = event) do
     IO.inspect(event, label: "Got commit event")
   end
 
@@ -18,7 +18,7 @@ defmodule ExampleSupervisor do
   @impl true
   def init(_) do
     children = [
-      {Drinkup, %{consumer: BasicConsumer}}
+      {Drinkup.Firehose, %{consumer: BasicConsumer}}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

@@ -1,4 +1,4 @@
-defmodule Drinkup.Options do
+defmodule Drinkup.Firehose.Options do
   use TypedStruct
 
   @default_host "https://bsky.network"

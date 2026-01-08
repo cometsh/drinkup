@@ -1,5 +1,5 @@
 defmodule PostDeleteConsumer do
-  use Drinkup.RecordConsumer, collections: ["app.bsky.feed.post"]
+  use Drinkup.Firehose.RecordConsumer, collections: ["app.bsky.feed.post"]
 
   def handle_delete(record) do
     IO.inspect(record, label: "update")
@@ -7,9 +7,9 @@ defmodule PostDeleteConsumer do
 end
 
 defmodule IdentityConsumer do
-  @behaviour Drinkup.Consumer
+  @behaviour Drinkup.Firehose.Consumer
 
-  def handle_event(%Drinkup.Event.Identity{} = event) do
+  def handle_event(%Drinkup.Firehose.Event.Identity{} = event) do
     IO.inspect(event, label: "identity event")
   end
 
@@ -26,8 +26,8 @@ defmodule ExampleSupervisor do
   @impl true
   def init(_) do
     children = [
-      {Drinkup, %{consumer: PostDeleteConsumer}},
-      {Drinkup, %{consumer: IdentityConsumer, name: :identities}}
+      {Drinkup.Firehose, %{consumer: PostDeleteConsumer}},
+      {Drinkup.Firehose, %{consumer: IdentityConsumer, name: :identities}}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

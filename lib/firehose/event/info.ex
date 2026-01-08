@@ -1,4 +1,4 @@
-defmodule Drinkup.Event.Info do
+defmodule Drinkup.Firehose.Event.Info do
   @moduledoc """
   Struct for info events from the ATProto Firehose.
   """

@@ -1,4 +1,4 @@
-defmodule Drinkup.RecordConsumer do
+defmodule Drinkup.Firehose.RecordConsumer do
   @moduledoc """
   An opinionated consumer of the Firehose that eats consumers
   """
@@ -11,15 +11,15 @@ defmodule Drinkup.RecordConsumer do
     {collections, _opts} = Keyword.pop(opts, :collections, [])
 
     quote location: :keep do
-      @behaviour Drinkup.Consumer
-      @behaviour Drinkup.RecordConsumer
+      @behaviour Drinkup.Firehose.Consumer
+      @behaviour Drinkup.Firehose.RecordConsumer
 
-      def handle_event(%Drinkup.Event.Commit{} = event) do
+      def handle_event(%Drinkup.Firehose.Event.Commit{} = event) do
         event.ops
         |> Enum.filter(fn %{path: path} ->
           path |> String.split("/") |> Enum.at(0) |> matches_collections?()
         end)
-        |> Enum.map(&Drinkup.RecordConsumer.Record.from(&1, event.repo))
+        |> Enum.map(&Drinkup.Firehose.RecordConsumer.Record.from(&1, event.repo))
         |> Enum.each(&apply(__MODULE__, :"handle_#{&1.action}", [&1]))
       end
 
@@ -56,7 +56,7 @@ defmodule Drinkup.RecordConsumer do
   end
 
   defmodule Record do
-    alias Drinkup.Event.Commit.RepoOp
+    alias Drinkup.Firehose.Event.Commit.RepoOp
     use TypedStruct
 
     typedstruct do

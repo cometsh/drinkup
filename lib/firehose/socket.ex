@@ -1,10 +1,10 @@
-defmodule Drinkup.Socket do
+defmodule Drinkup.Firehose.Socket do
   @moduledoc """
   gen_statem process for managing the websocket connection to an ATProto relay.
   """
 
   require Logger
-  alias Drinkup.{Event, Options}
+  alias Drinkup.Firehose.{Event, Options}
 
   @behaviour :gen_statem
   @timeout :timer.seconds(5)

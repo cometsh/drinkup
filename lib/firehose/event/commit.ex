@@ -1,4 +1,4 @@
-defmodule Drinkup.Event.Commit do
+defmodule Drinkup.Firehose.Event.Commit do
   @moduledoc """
   Struct for commit events from the ATProto Firehose.
   """

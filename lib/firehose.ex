@@ -1,13 +1,13 @@
-defmodule Drinkup do
+defmodule Drinkup.Firehose do
   use Supervisor
-  alias Drinkup.Options
+  alias Drinkup.Firehose.Options
 
   @dialyzer nowarn_function: {:init, 1}
   @impl true
   def init({%Options{name: name} = drinkup_options, supervisor_options}) do
     children = [
       {Task.Supervisor, name: {:via, Registry, {Drinkup.Registry, {name, Tasks}}}},
-      {Drinkup.Socket, drinkup_options}
+      {Drinkup.Firehose.Socket, drinkup_options}
     ]
 
     Supervisor.start_link(

@@ -1,6 +1,6 @@
-defmodule Drinkup.Event do
+defmodule Drinkup.Firehose.Event do
   require Logger
-  alias Drinkup.{Event, Options}
+  alias Drinkup.Firehose.{Event, Options}
 
   @type t() ::
           Event.Commit.t()

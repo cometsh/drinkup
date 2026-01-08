@@ -1,5 +1,6 @@
 defmodule ExampleRecordConsumer do
-  use Drinkup.RecordConsumer, collections: [~r/app\.bsky\.graph\..+/, "app.bsky.feed.post"]
+  use Drinkup.Firehose.RecordConsumer,
+    collections: [~r/app\.bsky\.graph\..+/, "app.bsky.feed.post"]
 
   def handle_create(record) do
     IO.inspect(record, label: "create")
@@ -24,7 +25,7 @@ defmodule ExampleSupervisor do
   @impl true
   def init(_) do
     children = [
-      {Drinkup, %{consumer: ExampleRecordConsumer}}
+      {Drinkup.Firehose, %{consumer: ExampleRecordConsumer}}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)
