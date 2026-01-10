@@ -13,6 +13,12 @@ and this project adheres to
 - Existing behaviour moved to `Drinkup.Firehose` namespace, to make way for
   alternate sync systems.
 
+### Added
+
+- Support for the
+  [Tap](https://github.com/bluesky-social/indigo/blob/main/cmd/tap/README.md)
+  sync and backfill utility service, via `Drinkup.Tap`.
+
 ### Changed
 
 - Refactor core connection logic for websockets into `Drinkup.Socket` to make it

@@ -32,12 +32,19 @@ defmodule Drinkup.Socket do
 
   @callback build_path(data :: user_data()) :: String.t()
 
-  @callback handle_frame(frame :: frame(), data :: user_data()) ::
+  @callback handle_frame(
+              frame :: frame(),
+              data :: {user_data(), conn :: pid() | nil, stream :: :gun.stream_ref() | nil}
+            ) ::
               {:ok, new_data :: user_data()} | :noop | nil | {:error, reason :: term()}
 
-  @callback handle_connected(data :: user_data()) :: {:ok, new_data :: user_data()}
+  @callback handle_connected(data :: {user_data(), conn :: pid(), stream :: :gun.stream_ref()}) ::
+              {:ok, new_data :: user_data()}
 
-  @callback handle_disconnected(reason :: term(), data :: user_data()) ::
+  @callback handle_disconnected(
+              reason :: term(),
+              data :: {user_data(), conn :: pid() | nil, stream :: :gun.stream_ref() | nil}
+            ) ::
               {:ok, new_data :: user_data()}
 
   @optional_callbacks handle_connected: 1, handle_disconnected: 2
@@ -76,10 +83,10 @@ defmodule Drinkup.Socket do
       defoverridable child_spec: 1
 
       @impl true
-      def handle_connected(data), do: {:ok, data}
+      def handle_connected({user_data, _conn, _stream}), do: {:ok, user_data}
 
       @impl true
-      def handle_disconnected(_reason, data), do: {:ok, data}
+      def handle_disconnected(_reason, {user_data, _conn, _stream}), do: {:ok, user_data}
 
       defoverridable handle_connected: 1, handle_disconnected: 2
     end
@@ -211,10 +218,14 @@ defmodule Drinkup.Socket do
 
   # :connected state - active WebSocket connection
 
-  def connected(:enter, _from, %{module: module, user_data: user_data} = data) do
+  def connected(
+        :enter,
+        _from,
+        %{module: module, user_data: user_data, conn: conn, stream: stream} = data
+      ) do
     Logger.debug("[Drinkup.Socket] WebSocket connected")
 
-    case module.handle_connected(user_data) do
+    case module.handle_connected({user_data, conn, stream}) do
       {:ok, new_user_data} ->
         {:keep_state, %{data | user_data: new_user_data, reconnect_attempts: 0}}
 
@@ -226,9 +237,10 @@ defmodule Drinkup.Socket do
   def connected(
         :info,
         {:gun_ws, conn, _stream, frame},
-        %{module: module, user_data: user_data, options: options} = data
+        %{module: module, user_data: user_data, options: options, conn: conn, stream: stream} =
+          data
       ) do
-    result = module.handle_frame(frame, user_data)
+    result = module.handle_frame(frame, {user_data, conn, stream})
 
     :ok = :gun.update_flow(conn, frame, options.flow)
 
@@ -286,9 +298,9 @@ defmodule Drinkup.Socket do
   # Helper functions
 
   defp trigger_reconnect(data, reason \\ :unknown) do
-    %{module: module, user_data: user_data} = data
+    %{module: module, user_data: user_data, conn: conn, stream: stream} = data
 
-    case module.handle_disconnected(reason, user_data) do
+    case module.handle_disconnected(reason, {user_data, conn, stream}) do
       {:ok, new_user_data} ->
         {:keep_state, %{data | user_data: new_user_data}, [{:next_event, :internal, :reconnect}]}
 

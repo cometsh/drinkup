@@ -39,7 +39,7 @@ defmodule Drinkup.Firehose.Socket do
   end
 
   @impl true
-  def handle_frame({:binary, frame}, %{seq: seq, options: options} = data) do
+  def handle_frame({:binary, frame}, {%{seq: seq, options: options} = data, _conn, _stream}) do
     with {:ok, header, next} <- CAR.DagCbor.decode(frame),
          {:ok, payload, _} <- CAR.DagCbor.decode(next),
          {%{"op" => @op_regular, "t" => type}, _} <- {header, payload},

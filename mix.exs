@@ -35,7 +35,10 @@ defmodule Drinkup.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:gun, "~> 2.2"},
-      {:typedstruct, "~> 0.5"}
+      {:typedstruct, "~> 0.5"},
+      {:jason, "~> 1.4"},
+      {:req, "~> 0.5.0"},
+      {:atex, "~> 0.7"}
     ]
   end
 
