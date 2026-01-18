@@ -18,6 +18,8 @@ and this project adheres to
 - Support for the
   [Tap](https://github.com/bluesky-social/indigo/blob/main/cmd/tap/README.md)
   sync and backfill utility service, via `Drinkup.Tap`.
+- Support for [Jetstream](https://github.com/bluesky-social/jetstream), a
+  simplified JSON event stream for ATProto, via `Drinkup.Jetstream`.
 
 ### Changed
 

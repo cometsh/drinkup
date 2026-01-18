@@ -53,6 +53,8 @@ defmodule Drinkup.Firehose.Options do
   HTTP/HTTPS URL of the ATProto Firehose relay.
 
   Defaults to `"https://bsky.network"` which is the public Bluesky relay.
+
+  You can find a list of third-party relays at https://compare.hose.cam/.
   """
   @type host() :: String.t()
 
