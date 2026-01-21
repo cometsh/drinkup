@@ -1,26 +1,19 @@
 # Drinkup
 
-An Elixir library for listening to events from an ATProtocol relay
-(firehose/`com.atproto.sync.subscribeRepos`). Eventually aiming to support any
-ATProtocol subscription.
+An Elixir library for consuming various AT Protocol sync services.
 
-## TODO
+Drinkup provides a unified interface for connecting to various AT Protocol data
+streams, handling reconnection logic, sequence tracking, and event dispatch.
+Choose the sync service that fits your needs:
 
-- Support for different subscriptions other than
-  `com.atproto.sync.subscribeRepo'.
-- Validation (signatures, making sure to only track handle active accounts,
-  etc.) (see
-  [Firehose Validation Best Practices](https://atproto.com/specs/sync#firehose-validation-best-practices))
-- Look into backfilling? See if there's better ways to do it.
-- Built-in solutions for tracking resumption? (probably a pluggable solution to
-  allow for different things like Mnesia, Postgres, etc.)
-- Testing of multi-node/distribution.
-- Tests
-- Documentation
+- **Firehose** - Raw event stream from the full AT Protocol network.
+- **Jetstream** - Lightweight, cherry-picked event stream with filtering by
+  record collections and DIDs.
+- **Tap** - Managed backfill and indexing solution.
 
 ## Installation
 
-Add `drinkup` to your `mix.exs`.
+Add `drinkup` to your `mix.exs`:
 
 ```elixir
 def deps do
@@ -32,73 +25,82 @@ end
 
 Documentation can be found on HexDocs at https://hexdocs.pm/drinkup.
 
-## Example Usage
+## Quick Start
 
-First, create a module implementing the `Drinkup.Consumer` behaviour (only
-requires a `handle_event/1` function):
+### Firehose
 
 ```elixir
-defmodule ExampleConsumer do
-  @behaviour Drinkup.Consumer
+defmodule MyApp.FirehoseConsumer do
+  @behaviour Drinkup.Firehose.Consumer
 
-  def handle_event(%Drinkup.Event.Commit{} = event) do
-    IO.inspect(event, label: "Got commit event")
+  def handle_event(%Drinkup.Firehose.Event.Commit{} = event) do
+    IO.inspect(event, label: "Commit")
   end
 
   def handle_event(_), do: :noop
 end
+
+# In your supervision tree:
+children = [{Drinkup.Firehose, %{consumer: MyApp.FirehoseConsumer}}]
 ```
 
-Then add Drinkup and your consumer to your application's supervision tree:
+### Jetstream
 
 ```elixir
-defmodule MyApp.Application do
-  use Application
+defmodule MyApp.JetstreamConsumer do
+  @behaviour Drinkup.Jetstream.Consumer
 
-  def start(_type, _args) do
-    children = [{Drinkup, %{consumer: ExampleConsumer}}]
-    Supervisor.start_link(children, strategy: :one_for_one)
+  def handle_event(%Drinkup.Jetstream.Event.Commit{} = event) do
+    IO.inspect(event, label: "Commit")
   end
+
+  def handle_event(_), do: :noop
 end
+
+# In your supervision tree:
+children = [
+  {Drinkup.Jetstream, %{
+    consumer: MyApp.JetstreamConsumer,
+    wanted_collections: ["app.bsky.feed.post"]
+  }}
+]
 ```
 
-You should then be able to start your application and start seeing
-`Got commit event: ...` in the terminal.
-
-### Record Consumer
-
-One of the main reasons for listening to an ATProto relay is to synchronise a
-database with records. As a result, Drinkup provides a light extension around a
-basic consumer, the `RecordConsumer`, which only listens to commit events, and
-transforms them into a slightly nicer structure to work around, calling your
-`handle_create/1`, `handle_update/1`, and `handle_delete/1` functions for each
-record it comes across. It also allows for filtering of specific types of
-records either by full name or with a
-[Regex](https://hexdocs.pm/elixir/1.18.4/Regex.html) match.
+### Tap
 
 ```elixir
-defmodule ExampleRecordConsumer do
-  # Will respond to any events either `app.bsky.feed.post` records, or anything under `app.bsky.graph`.
-  use Drinkup.RecordConsumer, collections: [~r/app\.bsky\.graph\..+/, "app.bsky.feed.post"]
-  alias Drinkup.RecordConsumer.Record
+defmodule MyApp.TapConsumer do
+  @behaviour Drinkup.Tap.Consumer
 
-  def handle_create(%Record{type: "app.bsky.feed.post"} = record) do
-    IO.inspect(record, label: "Bluesky post created")
+  def handle_event(%Drinkup.Tap.Event.Record{} = event) do
+    IO.inspect(event, label: "Record")
   end
 
-  def handle_create(%Record{type: "app.bsky.graph" <> _} = record) do
-    IO.inspect(record, label: "Bluesky graph updated")
-  end
-
-  def handle_update(record) do
-    # ...
-  end
-
-  def handle_delete(record) do
-    # ...
-  end
+  def handle_event(_), do: :noop
 end
+
+# In your supervision tree:
+children = [
+  {Drinkup.Tap, %{
+    consumer: MyApp.TapConsumer,
+    host: "http://localhost:2480"
+  }}
+]
+
+# Track specific repos:
+Drinkup.Tap.add_repos(Drinkup.Tap, ["did:plc:abc123"])
 ```
+
+See [the examples](./examples) for some more complete samples.
+
+## TODO
+
+- Validation for Firehose events (signatures, active account tracking) — see
+  [Firehose Validation Best Practices](https://atproto.com/specs/sync#firehose-validation-best-practices)
+- Pluggable cursor persistence (Mnesia, Postgres, etc.)
+- Multi-node/distribution testing
+- More comprehensive test coverage
+- Additional documentation
 
 ## Special thanks
 
