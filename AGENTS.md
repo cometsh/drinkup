@@ -24,14 +24,34 @@
 
 ## Project Structure
 
-- **Namespace**: All firehose functionality under `Drinkup.Firehose.*`
-  - `Drinkup.Firehose` - Main supervisor
-  - `Drinkup.Firehose.Consumer` - Behaviour for handling all events
-  - `Drinkup.Firehose.RecordConsumer` - Macro for handling commit record events with filtering
-  - `Drinkup.Firehose.Event` - Event types (`Commit`, `Sync`, `Identity`, `Account`, `Info`)
-  - `Drinkup.Firehose.Socket` - `:gen_statem` WebSocket connection manager
-- **Consumer Pattern**: Implement `@behaviour Drinkup.Firehose.Consumer` with `handle_event/1`
-- **RecordConsumer Pattern**: `use Drinkup.Firehose.RecordConsumer, collections: [~r/app\.bsky\.graph\..+/, "app.bsky.feed.post"]` with `handle_create/1`, `handle_update/1`, `handle_delete/1` overrides
+Each namespace (`Drinkup.Firehose`, `Drinkup.Jetstream`, `Drinkup.Tap`) follows a common architecture:
+
+- **Core Modules**:
+  - `Consumer` - Behaviour/macro for handling events; `use Namespace` with `handle_event/1` implementation
+  - `Event` - Typed event structs specific to the protocol
+  - `Socket` - `:gen_statem` WebSocket connection manager
+  - `Options` (or top-level utility module) - Configuration and runtime utilities
+
+- **Consumer Pattern**: `use Namespace, opts...` with `handle_event/1` callback; consumer module becomes a supervisor
+
+### Namespace-Specific Details
+
+- **Firehose** (`Drinkup.Firehose.*`): Full AT Protocol firehose
+  - Events: `Commit`, `Sync`, `Identity`, `Account`, `Info`
+  - Additional: `RecordConsumer` macro for filtered commit records with `handle_create/1`, `handle_update/1`, `handle_delete/1` callbacks
+  - Pattern: `use Drinkup.Firehose.RecordConsumer, collections: [~r/app\.bsky\.graph\..+/, "app.bsky.feed.post"]`
+
+- **Jetstream** (`Drinkup.Jetstream.*`): Simplified JSON event stream
+  - Events: `Commit`, `Identity`, `Account`
+  - Config: `:wanted_collections`, `:wanted_dids`, `:compress` (zstd)
+  - Utility: `Drinkup.Jetstream.update_options/2` for dynamic filtering
+  - Semantics: Fire-and-forget (no acks)
+
+- **Tap** (`Drinkup.Tap.*`): HTTP API + WebSocket indexer/backfill service
+  - Events: `Record`, `Identity`
+  - Config: `:host`, `:admin_password`, `:disable_acks`
+  - Utility: `Drinkup.Tap` HTTP API functions (`add_repos/2`, `remove_repos/2`, `get_repo_info/2`)
+  - Semantics: Ack/nack - return `:ok`/`{:ok, _}`/`nil` to ack, `{:error, _}` to nack (Tap retries)
 
 ## Important Notes
 

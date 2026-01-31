@@ -2,14 +2,17 @@ defmodule ExampleRecordConsumer do
   use Drinkup.Firehose.RecordConsumer,
     collections: [~r/app\.bsky\.graph\..+/, "app.bsky.feed.post"]
 
+  @impl true
   def handle_create(record) do
     IO.inspect(record, label: "create")
   end
 
+  @impl true
   def handle_update(record) do
     IO.inspect(record, label: "update")
   end
 
+  @impl true
   def handle_delete(record) do
     IO.inspect(record, label: "delete")
   end
@@ -24,9 +27,7 @@ defmodule ExampleSupervisor do
 
   @impl true
   def init(_) do
-    children = [
-      {Drinkup.Firehose, %{consumer: ExampleRecordConsumer}}
-    ]
+    children = [ExampleRecordConsumer]
 
     Supervisor.init(children, strategy: :one_for_one)
   end

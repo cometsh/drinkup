@@ -31,8 +31,9 @@ Documentation can be found on HexDocs at https://hexdocs.pm/drinkup.
 
 ```elixir
 defmodule MyApp.FirehoseConsumer do
-  @behaviour Drinkup.Firehose.Consumer
+  use Drinkup.Firehose
 
+  @impl true
   def handle_event(%Drinkup.Firehose.Event.Commit{} = event) do
     IO.inspect(event, label: "Commit")
   end
@@ -41,15 +42,31 @@ defmodule MyApp.FirehoseConsumer do
 end
 
 # In your supervision tree:
-children = [{Drinkup.Firehose, %{consumer: MyApp.FirehoseConsumer}}]
+children = [MyApp.FirehoseConsumer]
+```
+
+For filtered commit events by collection:
+
+```elixir
+defmodule MyApp.PostConsumer do
+  use Drinkup.Firehose.RecordConsumer,
+    collections: ["app.bsky.feed.post"]
+
+  @impl true
+  def handle_create(record) do
+    IO.inspect(record, label: "New post")
+  end
+end
 ```
 
 ### Jetstream
 
 ```elixir
 defmodule MyApp.JetstreamConsumer do
-  @behaviour Drinkup.Jetstream.Consumer
+  use Drinkup.Jetstream,
+    wanted_collections: ["app.bsky.feed.post"]
 
+  @impl true
   def handle_event(%Drinkup.Jetstream.Event.Commit{} = event) do
     IO.inspect(event, label: "Commit")
   end
@@ -58,37 +75,35 @@ defmodule MyApp.JetstreamConsumer do
 end
 
 # In your supervision tree:
-children = [
-  {Drinkup.Jetstream, %{
-    consumer: MyApp.JetstreamConsumer,
-    wanted_collections: ["app.bsky.feed.post"]
-  }}
-]
+children = [MyApp.JetstreamConsumer]
+
+# Update filters dynamically:
+Drinkup.Jetstream.update_options(MyApp.JetstreamConsumer, %{
+  wanted_collections: ["app.bsky.graph.follow"]
+})
 ```
 
 ### Tap
 
 ```elixir
 defmodule MyApp.TapConsumer do
-  @behaviour Drinkup.Tap.Consumer
+  use Drinkup.Tap,
+    host: "http://localhost:2480"
 
+  @impl true
   def handle_event(%Drinkup.Tap.Event.Record{} = event) do
     IO.inspect(event, label: "Record")
+    :ok
   end
 
-  def handle_event(_), do: :noop
+  def handle_event(_), do: :ok
 end
 
 # In your supervision tree:
-children = [
-  {Drinkup.Tap, %{
-    consumer: MyApp.TapConsumer,
-    host: "http://localhost:2480"
-  }}
-]
+children = [MyApp.TapConsumer]
 
 # Track specific repos:
-Drinkup.Tap.add_repos(Drinkup.Tap, ["did:plc:abc123"])
+Drinkup.Tap.add_repos(MyTap.TapConsumer, ["did:plc:abc123"])
 ```
 
 See [the examples](./examples) for some more complete samples.

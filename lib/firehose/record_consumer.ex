@@ -1,6 +1,50 @@
 defmodule Drinkup.Firehose.RecordConsumer do
   @moduledoc """
-  An opinionated consumer of the Firehose that eats consumers
+  Opinionated consumer of the Firehose focused on record operations.
+
+  This is an abstraction over the core `Drinkup.Firehose` implementation
+  designed for easily handling `commit` events, with the ability to filter by
+  collection. It's similiar to `Drinkup.Jetstream`, but using the Firehose
+  directly (and currently more naive).
+
+  ## Example
+
+      defmodule MyRecordConsumer do
+        use Drinkup.Firehose.RecordConsumer,
+          collections: ["app.bsky.feed.post", ~r/app\\.bsky\\.graph\\..+/],
+          name: :my_records,
+          host: "https://bsky.network"
+
+        @impl true
+        def handle_create(record) do
+          IO.inspect(record, label: "New record")
+        end
+
+        @impl true
+        def handle_delete(record) do
+          IO.inspect(record, label: "Deleted record")
+        end
+      end
+
+      # In your application supervision tree:
+      children = [MyRecordConsumer]
+
+  ## Options
+
+  All options from `Drinkup.Firehose` are supported, plus:
+
+  - `:collections` - List of collection NSIDs (strings or regexes) to filter. If
+    empty or not provided, all collections are processed.
+
+  ## Callbacks
+
+  Implement these callbacks to handle different record actions:
+
+  - `handle_create/1` - Called when a record is created
+  - `handle_update/1` - Called when a record is updated
+  - `handle_delete/1` - Called when a record is deleted
+
+  All callbacks receive a `Drinkup.Firehose.RecordConsumer.Record` struct.
   """
 
   @callback handle_create(any()) :: any()
@@ -8,12 +52,13 @@ defmodule Drinkup.Firehose.RecordConsumer do
   @callback handle_delete(any()) :: any()
 
   defmacro __using__(opts) do
-    {collections, _opts} = Keyword.pop(opts, :collections, [])
+    {collections, firehose_opts} = Keyword.pop(opts, :collections, [])
 
     quote location: :keep do
-      @behaviour Drinkup.Firehose.Consumer
+      use Drinkup.Firehose, unquote(firehose_opts)
       @behaviour Drinkup.Firehose.RecordConsumer
 
+      @impl true
       def handle_event(%Drinkup.Firehose.Event.Commit{} = event) do
         event.ops
         |> Enum.filter(fn %{path: path} ->

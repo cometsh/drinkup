@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Breaking Changes
 
+- Simplify usage by removing the concept of a separate "consumer", integrating
+  it directly into the socket's behaviour.
 - Existing behaviour moved to `Drinkup.Firehose` namespace, to make way for
   alternate sync systems.
 

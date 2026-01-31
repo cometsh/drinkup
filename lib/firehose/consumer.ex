@@ -1,9 +1,9 @@
 defmodule Drinkup.Firehose.Consumer do
   @moduledoc """
-  An unopinionated consumer of the Firehose. Will receive all events, not just commits.
+  Behaviour for handling Firehose events.
+
+  Implemented by `Drinkup.Firehose`, you'll likely want to be using that instead.
   """
 
-  alias Drinkup.Firehose.Event
-
-  @callback handle_event(Event.t()) :: any()
+  @callback handle_event(Drinkup.Firehose.Event.t()) :: any()
 end

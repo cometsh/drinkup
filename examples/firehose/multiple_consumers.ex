@@ -7,8 +7,9 @@ defmodule PostDeleteConsumer do
 end
 
 defmodule IdentityConsumer do
-  @behaviour Drinkup.Firehose.Consumer
+  use Drinkup.Firehose, name: :identities
 
+  @impl true
   def handle_event(%Drinkup.Firehose.Event.Identity{} = event) do
     IO.inspect(event, label: "identity event")
   end
@@ -26,8 +27,8 @@ defmodule ExampleSupervisor do
   @impl true
   def init(_) do
     children = [
-      {Drinkup.Firehose, %{consumer: PostDeleteConsumer}},
-      {Drinkup.Firehose, %{consumer: IdentityConsumer, name: :identities}}
+      PostDeleteConsumer,
+      IdentityConsumer
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

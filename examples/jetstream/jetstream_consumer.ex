@@ -8,8 +8,11 @@ defmodule JetstreamConsumer do
   - Account events (status changes)
   """
 
-  @behaviour Drinkup.Jetstream.Consumer
+  use Drinkup.Jetstream,
+    name: MyJetstream,
+    wanted_collections: ["app.bsky.feed.post", "app.bsky.feed.like"]
 
+  @impl true
   def handle_event(%Drinkup.Jetstream.Event.Commit{operation: :create} = event) do
     IO.inspect(event, label: "New record created")
     :ok
@@ -72,15 +75,7 @@ defmodule ExampleJetstreamSupervisor do
 
   @impl true
   def init(_) do
-    children = [
-      # Connect to public Jetstream instance and filter for posts and likes
-      {Drinkup.Jetstream,
-       %{
-         consumer: JetstreamConsumer,
-         name: MyJetstream,
-         wanted_collections: ["app.bsky.feed.post", "app.bsky.feed.like"]
-       }}
-    ]
+    children = [JetstreamConsumer]
 
     Supervisor.init(children, strategy: :one_for_one)
   end
@@ -88,8 +83,11 @@ end
 
 # Example: Filter for all graph operations (follows, blocks, etc.)
 defmodule GraphEventsConsumer do
-  @behaviour Drinkup.Jetstream.Consumer
+  use Drinkup.Jetstream,
+    name: :graph_events,
+    wanted_collections: ["app.bsky.graph.*"]
 
+  @impl true
   def handle_event(%Drinkup.Jetstream.Event.Commit{collection: "app.bsky.graph." <> _} = event) do
     IO.puts("Graph event: #{event.collection} - #{event.operation}")
     :ok
@@ -100,13 +98,16 @@ end
 
 # Example: Filter for specific DIDs
 defmodule SpecificDIDConsumer do
-  @behaviour Drinkup.Jetstream.Consumer
+  use Drinkup.Jetstream,
+    name: :specific_dids,
+    wanted_dids: ["did:plc:abc123", "did:plc:def456"]
 
   @watched_dids [
     "did:plc:abc123",
     "did:plc:def456"
   ]
 
+  @impl true
   def handle_event(%Drinkup.Jetstream.Event.Commit{did: did} = event)
       when did in @watched_dids do
     IO.puts("Activity from watched DID: #{did}")

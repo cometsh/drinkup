@@ -1,32 +1,43 @@
 defmodule Drinkup.Jetstream do
   @moduledoc """
-  Supervisor for Jetstream event stream connections.
+  Module for handling events from an AT Protocol
+  [Jetstream](https://github.com/bluesky-social/jetstream) instance.
 
-  Jetstream is a simplified JSON event stream that converts the CBOR-encoded
-  ATProto Firehose into lightweight, friendly JSON events. It provides zstd
-  compression and filtering capabilities for collections and DIDs.
+  Jetstream is an abstraction over the raw AT Protocol firehose that converts
+  the CBOR-encoded events into easier to handle JSON objects, and also provides
+  the ability to filter the events received by repository DID or collection
+  NSID. This is useful when you know specifically which repos or collections you
+  want events from, and thus reduces the amount of bandwidth consumed vs
+  consuming the raw firehose directly.
+
+  If you need a solution for easy backfilling from repositories and not just a
+  firehose translation layer, check out `Drinkup.Tap`.
 
   ## Usage
 
-  Add Jetstream to your supervision tree:
+      defmodule MyJetstreamConsumer do
+        use Drinkup.Jetstream,
+          name: :my_jetstream,
+          wanted_collections: ["app.bsky.feed.post"]
 
-      children = [
-        {Drinkup.Jetstream, %{
-          consumer: MyJetstreamConsumer,
-          name: MyJetstream,
-          wanted_collections: ["app.bsky.feed.post", "app.bsky.feed.like"]
-        }}
-      ]
+        @impl true
+        def handle_event(event) do
+          IO.inspect(event)
+        end
+      end
+
+      # In your application supervision tree:
+      children = [MyJetstreamConsumer]
 
   ## Configuration
 
-  See `Drinkup.Jetstream.Options` for all available configuration options.
+  See `Drinkup.Jetstream.Consumer` for all available configuration options.
 
   ## Dynamic Filter Updates
 
   You can update filters after the connection is established:
 
-      Drinkup.Jetstream.update_options(MyJetstream, %{
+      Drinkup.Jetstream.update_options(:my_jetstream, %{
         wanted_collections: ["app.bsky.graph.follow"],
         wanted_dids: ["did:plc:abc123"]
       })
@@ -36,49 +47,106 @@ defmodule Drinkup.Jetstream do
   By default Drinkup connects to `jetstream2.us-east.bsky.network`.
 
   Bluesky operates a few different Jetstream instances:
-  - `jetstream1.us-east.bsky.network`
-  - `jetstream2.us-east.bsky.network`
-  - `jetstream1.us-west.bsky.network`
-  - `jetstream2.us-west.bsky.network`
+  - `wss://jetstream1.us-east.bsky.network`
+  - `wss://jetstream2.us-east.bsky.network`
+  - `wss://jetstream1.us-west.bsky.network`
+  - `wss://jetstream2.us-west.bsky.network`
 
-  There also some third-party instances not run by Bluesky PBC:
-  - `jetstream.fire.hose.cam`
-  - `jetstream2.fr.hose.cam`
-  - `jetstream1.us-east.fire.hose.cam`
+  There also some third-party instances not run by Bluesky PBC, including but not limited to:
+  - `wss://jetstream.fire.hose.cam`
+  - `wss://jetstream2.fr.hose.cam`
+  - `wss://jetstream1.us-east.fire.hose.cam`
+
+  https://firehose.stream/ also hosts several instances around the world.
   """
 
-  use Supervisor
   require Logger
-  alias Drinkup.Jetstream.Options
 
-  @dialyzer nowarn_function: {:init, 1}
+  defmacro __using__(opts) do
+    quote location: :keep, bind_quoted: [opts: opts] do
+      use Supervisor
+      @behaviour Drinkup.Jetstream.Consumer
 
-  @impl true
-  def init({%Options{name: name} = drinkup_options, supervisor_options}) do
-    children = [
-      {Task.Supervisor, name: {:via, Registry, {Drinkup.Registry, {name, JetstreamTasks}}}},
-      {Drinkup.Jetstream.Socket, drinkup_options}
-    ]
+      alias Drinkup.Jetstream.Options
 
-    Supervisor.start_link(
-      children,
-      supervisor_options ++
-        [name: {:via, Registry, {Drinkup.Registry, {name, JetstreamSupervisor}}}]
-    )
-  end
+      # Store compile-time options as module attributes
+      @name Keyword.get(opts, :name)
+      @host Keyword.get(opts, :host, "wss://jetstream2.us-east.bsky.network")
+      @wanted_collections Keyword.get(opts, :wanted_collections, [])
+      @wanted_dids Keyword.get(opts, :wanted_dids, [])
+      @cursor Keyword.get(opts, :cursor)
+      @require_hello Keyword.get(opts, :require_hello, false)
+      @max_message_size_bytes Keyword.get(opts, :max_message_size_bytes)
 
-  @spec child_spec(Options.options()) :: Supervisor.child_spec()
-  def child_spec(%{} = options), do: child_spec({options, [strategy: :one_for_one]})
+      @doc """
+      Starts the Jetstream consumer supervisor.
 
-  @spec child_spec({Options.options(), Keyword.t()}) :: Supervisor.child_spec()
-  def child_spec({drinkup_options, supervisor_options}) do
-    %{
-      id: Map.get(drinkup_options, :name, __MODULE__),
-      start: {__MODULE__, :init, [{Options.from(drinkup_options), supervisor_options}]},
-      type: :supervisor,
-      restart: :permanent,
-      shutdown: 500
-    }
+      Accepts optional runtime configuration that overrides compile-time options.
+      """
+      def start_link(runtime_opts \\ []) do
+        opts = build_options(runtime_opts)
+        Supervisor.start_link(__MODULE__, opts, name: via_tuple(opts.name))
+      end
+
+      @impl true
+      def init(%Options{name: name} = options) do
+        children = [
+          {Task.Supervisor, name: {:via, Registry, {Drinkup.Registry, {name, JetstreamTasks}}}},
+          {Drinkup.Jetstream.Socket, options}
+        ]
+
+        Supervisor.init(children, strategy: :one_for_one)
+      end
+
+      @doc """
+      Returns a child spec for adding this consumer to a supervision tree.
+
+      Runtime options override compile-time options.
+      """
+      def child_spec(runtime_opts) when is_list(runtime_opts) do
+        opts = build_options(runtime_opts)
+
+        %{
+          id: opts.name,
+          start: {__MODULE__, :start_link, [runtime_opts]},
+          type: :supervisor,
+          restart: :permanent,
+          shutdown: 500
+        }
+      end
+
+      def child_spec(_opts) do
+        raise ArgumentError, "child_spec expects a keyword list of options"
+      end
+
+      defoverridable child_spec: 1
+
+      # Build Options struct from compile-time and runtime options
+      defp build_options(runtime_opts) do
+        compile_opts = [
+          name: @name || __MODULE__,
+          host: @host,
+          wanted_collections: @wanted_collections,
+          wanted_dids: @wanted_dids,
+          cursor: @cursor,
+          require_hello: @require_hello,
+          max_message_size_bytes: @max_message_size_bytes
+        ]
+
+        merged =
+          compile_opts
+          |> Keyword.merge(runtime_opts)
+          |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+          |> Map.new()
+          |> Map.put(:consumer, __MODULE__)
+
+        Options.from(merged)
+      end
+
+      defp via_tuple(name) do
+        {:via, Registry, {Drinkup.Registry, {name, JetstreamSupervisor}}}
+      end
+    end
   end
 
   # Options Update API
@@ -107,7 +175,7 @@ defmodule Drinkup.Jetstream do
 
   ## Parameters
 
-  - `name` - The name of the Jetstream instance (default: `Drinkup.Jetstream`)
+  - `name` - The name of the Jetstream consumer (the `:name` option passed to `use Drinkup.Jetstream`)
   - `opts` - Map with optional fields:
     - `:wanted_collections` - List of collection NSIDs or prefixes (max 100)
     - `:wanted_dids` - List of DIDs to filter (max 10,000)
@@ -116,17 +184,17 @@ defmodule Drinkup.Jetstream do
   ## Examples
 
       # Filter to only posts
-      Drinkup.Jetstream.update_options(MyJetstream, %{
+      Drinkup.Jetstream.update_options(:my_jetstream, %{
         wanted_collections: ["app.bsky.feed.post"]
       })
 
       # Filter to specific DIDs
-      Drinkup.Jetstream.update_options(MyJetstream, %{
+      Drinkup.Jetstream.update_options(:my_jetstream, %{
         wanted_dids: ["did:plc:abc123", "did:plc:def456"]
       })
 
       # Disable all filters (receive all events)
-      Drinkup.Jetstream.update_options(MyJetstream, %{
+      Drinkup.Jetstream.update_options(:my_jetstream, %{
         wanted_collections: [],
         wanted_dids: []
       })
@@ -140,7 +208,7 @@ defmodule Drinkup.Jetstream do
   Invalid updates will result in the connection being closed by the server.
   """
   @spec update_options(atom(), update_opts()) :: :ok | {:error, term()}
-  def update_options(name \\ Drinkup.Jetstream, opts) when is_map(opts) do
+  def update_options(name, opts) when is_atom(name) and is_map(opts) do
     case find_connection(name) do
       {:ok, {conn, stream}} ->
         message = build_options_update_message(opts)
@@ -153,8 +221,6 @@ defmodule Drinkup.Jetstream do
         {:error, reason}
     end
   end
-
-  # Private functions
 
   @spec find_connection(atom()) :: {:ok, {pid(), :gun.stream_ref()}} | {:error, :not_connected}
   defp find_connection(name) do
