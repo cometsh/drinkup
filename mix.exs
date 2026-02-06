@@ -38,8 +38,7 @@ defmodule Drinkup.MixProject do
       {:gun, "~> 2.2"},
       {:typedstruct, "~> 0.5"},
       {:jason, "~> 1.4"},
-      {:req, "~> 0.5.0"},
-      {:atex, "~> 0.7"}
+      {:req, "~> 0.5.0"}
     ]
   end
 
