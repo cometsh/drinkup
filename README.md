@@ -18,7 +18,7 @@ Add `drinkup` to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:drinkup, "~> 0.1"}
+    {:drinkup, "~> 0.2"}
   ]
 end
 ```
